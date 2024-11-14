@@ -4,13 +4,16 @@ file = 'logs/00000085.BIN'
 
 mavlog = mavutil.mavlink_connection(file, dialect='ardupilotmega', robust_parsing=True)
 
+armed = False
 flying = False
+
 start = 0
 end = 0
+
 flights = 0
 flightTime = 0
 
-buffer = 1
+buffer = 0.1
 
 while True:
     message = mavlog.recv_match()
@@ -20,12 +23,20 @@ while True:
 
     messageType = message.get_type()
 
-    if (messageType == 'POS'):
-        if (not flying and message.to_dict()['RelHomeAlt'] > buffer):
+    if (messageType == 'STAT'):
+        isFlying = message.to_dict()['isFlying']
+
+        if (not armed and isFlying == 1):
+            armed = True
+        elif (armed and isFlying == 0):
+            armed = False
+
+    elif (messageType == 'POS'):
+        if (armed and not flying and message.to_dict()['RelHomeAlt'] > buffer):
             flying = True
             flights += 1
             start = message.to_dict()['TimeUS']
-        elif (flying and message.to_dict()['RelHomeAlt'] <= buffer):
+        elif (armed and flying and message.to_dict()['RelHomeAlt'] <= buffer):
             flying = False
             end = message.to_dict()['TimeUS']
             flightTime += end - start
