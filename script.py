@@ -1,19 +1,23 @@
 from pymavlink import mavutil
 
-file = 'logs/00000085.BIN'
+file = 'logs/00000075.BIN'
 
 mavlog = mavutil.mavlink_connection(file, dialect='ardupilotmega', robust_parsing=True)
 
-armed = False
-flying = False
+isArmed = False
+isFlying = False
+isAuto = False
 
-start = 0
-end = 0
+flightStart = 0
+flightEnd = 0
+autoFlightStart = 0
+autoFlightEnd = 0
 
-flights = 0
-flightTime = 0
+totalFlights = 0
+totalFlightTime = 0
+totalAutoTime = 0
 
-buffer = 0.1
+flightAltBuffer = 0.1
 
 while True:
     message = mavlog.recv_match()
@@ -24,24 +28,47 @@ while True:
     messageType = message.get_type()
 
     if (messageType == 'STAT'):
-        isFlying = message.to_dict()['isFlying']
 
-        if (not armed and isFlying == 1):
-            armed = True
-        elif (armed and isFlying == 0):
-            armed = False
+        if (not isArmed and message.to_dict()['isFlying'] == 1):
+            isArmed = True
+        elif (isArmed and message.to_dict()['isFlying'] == 0):
+            isArmed = False
 
     elif (messageType == 'POS'):
-        if (armed and not flying and message.to_dict()['RelHomeAlt'] > buffer):
-            flying = True
-            flights += 1
-            start = message.to_dict()['TimeUS']
-        elif (armed and flying and message.to_dict()['RelHomeAlt'] <= buffer):
-            flying = False
-            end = message.to_dict()['TimeUS']
-            flightTime += end - start
-            
-    print(f"{messageType}: {message.to_dict()}")
+        if (isArmed and not isFlying and message.to_dict()['RelHomeAlt'] > flightAltBuffer):
+            isFlying = True
+            totalFlights += 1
+            flightStart = message.to_dict()['TimeUS']
+
+            if (isAuto):
+                autoFlightStart = message.to_dict()['TimeUS']
+
+        elif (isArmed and isFlying and message.to_dict()['RelHomeAlt'] <= flightAltBuffer):
+            isFlying = False
+            flightEnd = message.to_dict()['TimeUS']
+            totalFlightTime += flightEnd - flightStart
+
+            if (isAuto):
+                autoFlightEnd = message.to_dict()['TimeUS']
+                totalAutoTime += autoFlightEnd - autoFlightStart
     
-print('Flights: ' + str(flights))
-print('Flight Time: ' + str(flightTime / 10e5) + 's')
+    elif (messageType == "MODE"):
+        if (message.to_dict()['Mode'] == 10):
+            isAuto = True
+            
+            if (isFlying):
+                autoFlightStart = message.to_dict()['TimeUS']
+        else:
+            if (isAuto):
+                isAuto = False
+
+                if (isFlying):
+                    autoFlightEnd = message.to_dict()['TimeUS']
+                    totalAutoTime += autoFlightEnd - autoFlightStart
+            
+    # print(f"{messageType}: {message.to_dict()}")
+    
+print('Total Flights: ' + str(totalFlights))
+print('Total Flight Time: ' + str(totalFlightTime / 10e5) + 's')
+print('Auto Flight Time: ' + str(totalAutoTime / 10e5) + 's')
+print('Manual Flight Time: ' + str((totalFlightTime - totalAutoTime) / 10e5) + 's')
