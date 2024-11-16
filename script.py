@@ -1,16 +1,17 @@
 from pymavlink import mavutil
 import matplotlib.pyplot as plt
+import numpy as np
 
-file = 'logs/00000085.BIN'
+file = 'logs/00000075.BIN'
 
 data = {
     'all': [],
     'flight_summary': [],
     'battery_voltage': [],
-    'flights': []
+    'flights_timestamps': []
 }
 
-flight_summary_types = { 'STAT', 'POS', 'MODE' }
+flight_summary_types = { 'STAT', 'MODE' } # message types used for flight summary data
 
 def parse_log(file):
     mavlog = mavutil.mavlink_connection(file, dialect='ardupilotmega', robust_parsing=True)
@@ -41,7 +42,6 @@ def parse_log(file):
     print(f'Finished processing {total_messages} messages.')
 
 def flight_summary(messages):
-    is_armed = False
     is_flying = False
     is_auto_mode = False
     is_auto_flight = False
@@ -56,24 +56,17 @@ def flight_summary(messages):
     total_auto_flights = 0
     total_auto_time = 0
 
-    flight_alt_buffer = 0.1
-
     for message in messages:
         type = message['mavpackettype']
 
         if (type == 'STAT'):
+            # set whether or not the plane is armed
 
-            if (not is_armed and message['isFlying'] == 1):
-                is_armed = True
-            elif (is_armed and message['isFlying'] == 0):
-                is_armed = False
-
-        elif (type == 'POS'):
-            if (is_armed and not is_flying and message['RelHomeAlt'] > flight_alt_buffer):
+            if not is_flying and message['isFlyProb'] >= 0.8:
                 is_flying = True
                 total_flights += 1
                 flight_start = message['TimeUS']
-                data['flights'].append(flight_start)
+                data['flights_timestamps'].append(flight_start)
 
                 if is_auto_mode:
                     auto_flight_start = message['TimeUS']
@@ -81,25 +74,25 @@ def flight_summary(messages):
                     if not is_auto_flight:
                         is_auto_flight = True
                         total_auto_flights += 1
-
-            elif (is_armed and is_flying and message['RelHomeAlt'] <= flight_alt_buffer):
+            elif is_flying and message['isFlyProb'] < 0.8:
                 is_flying = False
                 flight_end = message['TimeUS']
-                data['flights'].append(flight_end)
                 total_flight_time += flight_end - flight_start
 
-                if (is_auto_mode):
+                flight_end = message['TimeUS']
+                data['flights_timestamps'].append(flight_end)
+
+                if is_auto_mode:
                     auto_flight_end = message['TimeUS']
                     total_auto_time += auto_flight_end - auto_flight_start
 
                     if is_auto_flight:
                         is_auto_flight = False
-        
         elif (type == 'MODE'):
             if (message['Mode'] == 10):
                 is_auto_mode = True
                 
-                if (is_flying):
+                if is_flying:
                     auto_flight_start = message['TimeUS']
 
                     if not is_auto_flight:
@@ -128,16 +121,28 @@ def print_all(messages):
         print(message)
 
 def battery_voltage(messages):
-    batter_voltage_times = []
-    batter_voltages = []
+    battery_voltage_times = []
+    battery_voltages = []
 
     for message in messages:
-        batter_voltage_times.append(message['TimeUS'] / 10e5)
-        batter_voltages.append(message['Volt'])
+        battery_voltage_times.append(message['TimeUS'] / 10e5)
+        battery_voltages.append(message['Volt'])
+
+    average_voltage = np.mean(battery_voltages)
     
-    plt.plot(batter_voltage_times, batter_voltages)
+    plt.plot(battery_voltage_times, battery_voltages)
+
+    plt.title('Battery Voltage Over Time')
     plt.xlabel('Time (s)')
     plt.ylabel('Voltage (V)')
+
+    for i in range(len(data['flights_timestamps']) // 2):
+        plt.axvline(data['flights_timestamps'][2 * i] / 10e5, color='red', linestyle = '--', label = 'Threshold')
+        plt.text(data['flights_timestamps'][2 * i] / 10e5, average_voltage, f'Flight {i + 1} Start', rotation=90, color='red', ha='right')
+        
+        plt.axvline(data['flights_timestamps'][2 * i + 1] / 10e5, color='red', linestyle = '--', label = 'Threshold')
+        plt.text(data['flights_timestamps'][2 * i + 1] / 10e5, average_voltage, f'Flight {i + 1} End', rotation=90, color='red', ha='right')
+
     plt.show()
 
 if __name__ == '__main__':
