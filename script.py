@@ -2,7 +2,7 @@ from pymavlink import mavutil
 import matplotlib.pyplot as plt
 import numpy as np
 
-file = 'logs/00000085.BIN'
+file = 'logs/00000084.BIN'
 
 data = {
     'flight_summary': [],
@@ -35,7 +35,7 @@ def parse_log(file):
         total_messages += 1
         print(f'Processing {total_messages} messages...', end='\r')
 
-        # print(f"{message['mavpackettype']}: {message}")
+        print(f"{message['mavpackettype']}: {message}")
     
     print(f'Finished processing {total_messages} messages.')
 
@@ -74,7 +74,6 @@ def flight_summary(messages):
                         total_auto_flights += 1
                 
                 if is_vertical_mode:
-                    print("Started flight in vertical mode")
                     vertical_flight_start = message['TimeUS']
             elif is_flying and message['isFlyProb'] < 0.8:
                 is_flying = False
@@ -92,7 +91,6 @@ def flight_summary(messages):
                         is_auto_flight = False
                 
                 if is_vertical_mode: # end vertical timer if in vertical mode
-                    print("Ended flight in vertical mode")
                     vertical_flight_end = message['TimeUS']
                     total_vertical_flight_time += vertical_flight_end - vertical_flight_start
         elif message['mavpackettype'] == 'MODE':
@@ -105,8 +103,11 @@ def flight_summary(messages):
                     if not is_auto_flight: # classify as auto flight if not already so
                         is_auto_flight = True
                         total_auto_flights += 1
+
+                if is_vertical_mode:
+                    vertical_flight_end = message['TimeUS']
+                    total_vertical_flight_time += vertical_flight_end - vertical_flight_start
             elif not is_vertical_mode and message['Mode'] in vertical_modes:
-                print("Switched to vertical mode")
                 is_vertical_mode = True
 
                 if is_flying: # start vertical timer if flying
@@ -123,12 +124,23 @@ def flight_summary(messages):
                             is_auto_flight = False
 
                 if is_vertical_mode:
-                    print("Switched out of vertical mode")
                     is_vertical_mode = False
 
                     if is_flying:
                         vertical_flight_end = message['TimeUS']
                         total_vertical_flight_time += vertical_flight_end - vertical_flight_start
+        elif is_auto_mode and message['mavpackettype'] == 'MSG':
+            if not is_vertical_mode and 'VTOL Position' in message['Message']:
+                is_vertical_mode = True
+
+                if is_flying: # start vertical timer if flying
+                    vertical_flight_start = message['TimeUS']
+            elif is_vertical_mode and 'Exited VTOL' in message['Message']:
+                is_vertical_mode = False
+
+                if is_flying:
+                    vertical_flight_end = message['TimeUS']
+                    total_vertical_flight_time += vertical_flight_end - vertical_flight_start
 
     print(
         f"Key flight data (for DesOps):\n"
@@ -157,6 +169,7 @@ def battery_voltage(messages):
     plt.xlabel('Time (s)')
     plt.ylabel('Voltage (V)')
 
+    # add lines to indicate flight start and end times
     for i in range(len(data['flights_timestamps']) // 2):
         plt.axvline(data['flights_timestamps'][2 * i] / 1e6, color='red', linestyle = '--', label = 'Threshold')
         plt.text(data['flights_timestamps'][2 * i] / 1e6, average_voltage, f'Flight {i + 1} Start', rotation=90, color='red', ha='right')
