@@ -2,7 +2,7 @@ from pymavlink import mavutil
 import matplotlib.pyplot as plt
 import numpy as np
 
-file = 'logs/00000084.BIN'
+file = 'logs/00000075.BIN'
 
 data = {
     'flight_summary': [],
@@ -10,7 +10,7 @@ data = {
     'flights_timestamps': []
 }
 
-flight_summary_types = { 'STAT', 'MODE', 'MSG' } # message types used for flight summary data
+flight_summary_types = { 'STAT', 'MODE', 'MSG', 'CMD' } # message types used for flight summary data
 vertical_modes = { 17, 18, 19, 20, 21, 22, 23 } # vertical flight modes
 
 def parse_log(file):
@@ -35,7 +35,7 @@ def parse_log(file):
         total_messages += 1
         print(f'Processing {total_messages} messages...', end='\r')
 
-        print(f"{message['mavpackettype']}: {message}")
+        # print(f"{message['mavpackettype']}: {message}")
     
     print(f'Finished processing {total_messages} messages.')
 
@@ -57,6 +57,9 @@ def flight_summary(messages):
     total_auto_flights = 0
     total_auto_time = 0
     total_vertical_flight_time = 0
+
+    wp_attempted = 0
+    first_wp_attempted = False
 
     for message in messages:
         if message['mavpackettype'] == 'STAT':
@@ -93,10 +96,13 @@ def flight_summary(messages):
                 if is_vertical_mode: # end vertical timer if in vertical mode
                     vertical_flight_end = message['TimeUS']
                     total_vertical_flight_time += vertical_flight_end - vertical_flight_start
+                
+                first_wp_attempted = False
         elif message['mavpackettype'] == 'MODE':
             if message['Mode'] == 10: # auto mode
                 is_auto_mode = True
-                
+                print(message['TimeUS'])
+
                 if is_flying: # start auto timer if flying
                     auto_flight_start = message['TimeUS']
 
@@ -129,7 +135,7 @@ def flight_summary(messages):
                     if is_flying:
                         vertical_flight_end = message['TimeUS']
                         total_vertical_flight_time += vertical_flight_end - vertical_flight_start
-        elif is_auto_mode and message['mavpackettype'] == 'MSG':
+        elif message['mavpackettype'] == 'MSG':
             if not is_vertical_mode and 'VTOL Position' in message['Message']:
                 is_vertical_mode = True
 
@@ -141,16 +147,23 @@ def flight_summary(messages):
                 if is_flying:
                     vertical_flight_end = message['TimeUS']
                     total_vertical_flight_time += vertical_flight_end - vertical_flight_start
-
+        elif message['mavpackettype'] == 'CMD':
+            if not first_wp_attempted:
+                wp_attempted += 1
+                first_wp_attempted = True
+            elif is_auto_mode:
+                wp_attempted += 1
+            
     print(
-        f"Key flight data (for DesOps):\n"
+        f"Key flight data:\n"
         f"\tTotal Flights: {total_flights}\n"
         f"\tTotal Auto Flights: {total_auto_flights}\n"
         f"\tTotal Flight Time: {total_flight_time / 1e6:.2f}s\n"
         f"\tTotal Vertical Flight Time: {total_vertical_flight_time / 1e6:.2f}s\n"
         f"\tTotal Horizontal Time: {(total_flight_time - total_vertical_flight_time) / 1e6:.2f}s\n"
         f"\tAuto Flight Time: {total_auto_time / 1e6:.2f}s\n"
-        f"\tManual Flight Time: {(total_flight_time - total_auto_time) / 1e6:.2f}s"
+        f"\tManual Flight Time: {(total_flight_time - total_auto_time) / 1e6:.2f}s\n"
+        f"\tWaypoints Attempted: {wp_attempted}"
     )
 
 def battery_voltage(messages):
