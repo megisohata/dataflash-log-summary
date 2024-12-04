@@ -6,17 +6,15 @@ data = {
     'flight_summary': [],
 }
 
-flight_summary_types = { 'STAT', 'MODE', 'MSG', 'CMD' } # message types used for flight summary data
-vertical_modes = { 17, 18, 19, 20, 21, 22, 23 } # vertical flight modes
+flight_summary_types = {'STAT', 'MODE', 'MSG', 'CMD'}
+vertical_modes = {17, 18, 19, 20, 21, 22, 23}
 
 def parse_log(file):
     mavlog = mavutil.mavlink_connection(file, dialect='ardupilotmega', robust_parsing=True)
-
     total_messages = 0
 
     while True:
         message = mavlog.recv_match()
-
         if not message:
             break
 
@@ -24,12 +22,10 @@ def parse_log(file):
 
         if message['mavpackettype'] in flight_summary_types:
             data['flight_summary'].append(message)
-        
+
         total_messages += 1
         print(f'Processing {total_messages} messages...', end='\r')
 
-        # print(f"{message['mavpackettype']}: {message}")
-    
     print(f'Finished processing {total_messages} messages.')
 
 def flight_summary(messages):
@@ -38,18 +34,12 @@ def flight_summary(messages):
     is_auto_flight = False
     is_vertical_mode = False
 
-    flight_start = 0
-    flight_end = 0
-    auto_flight_start = 0
-    auto_flight_end = 0
-    vertical_flight_start = 0
-    vertical_flight_end = 0
+    flight_start = flight_end = 0
+    auto_flight_start = auto_flight_end = 0
+    vertical_flight_start = vertical_flight_end = 0
 
-    total_flights = 0
-    total_flight_time = 0
-    total_auto_flights = 0
-    total_auto_time = 0
-    total_vertical_flight_time = 0
+    total_flights = total_flight_time = total_auto_flights = 0
+    total_auto_time = total_vertical_flight_time = 0
 
     wp_attempted = 0
     first_wp_attempted = False
@@ -61,13 +51,13 @@ def flight_summary(messages):
                 total_flights += 1
                 flight_start = message['TimeUS']
 
-                if is_auto_mode: # start auto timer if in auto mode
+                if is_auto_mode:
                     auto_flight_start = message['TimeUS']
 
-                    if not is_auto_flight: # classify as auto flight if not already so
+                    if not is_auto_flight:
                         is_auto_flight = True
                         total_auto_flights += 1
-                
+
                 if is_vertical_mode:
                     vertical_flight_start = message['TimeUS']
             elif is_flying and message['isFlyProb'] < 0.8:
@@ -75,29 +65,25 @@ def flight_summary(messages):
                 flight_end = message['TimeUS']
                 total_flight_time += flight_end - flight_start
 
-                flight_end = message['TimeUS']
-
-                if is_auto_mode: # end auto timer if in auto mode
+                if is_auto_mode:
                     auto_flight_end = message['TimeUS']
                     total_auto_time += auto_flight_end - auto_flight_start
 
                     if is_auto_flight:
                         is_auto_flight = False
-                
-                if is_vertical_mode: # end vertical timer if in vertical mode
+
+                if is_vertical_mode:
                     vertical_flight_end = message['TimeUS']
                     total_vertical_flight_time += vertical_flight_end - vertical_flight_start
-                
+
                 first_wp_attempted = False
         elif message['mavpackettype'] == 'MODE':
-            if message['Mode'] == 10: # auto mode
+            if message['Mode'] == 10:
                 is_auto_mode = True
-                print(message['TimeUS'])
-
-                if is_flying: # start auto timer if flying
+                if is_flying:
                     auto_flight_start = message['TimeUS']
 
-                    if not is_auto_flight: # classify as auto flight if not already so
+                    if not is_auto_flight:
                         is_auto_flight = True
                         total_auto_flights += 1
 
@@ -107,7 +93,7 @@ def flight_summary(messages):
             elif not is_vertical_mode and message['Mode'] in vertical_modes:
                 is_vertical_mode = True
 
-                if is_flying: # start vertical timer if flying
+                if is_flying:
                     vertical_flight_start = message['TimeUS']
             elif message['Mode'] != 10 and message['Mode'] not in vertical_modes:
                 if is_auto_mode:
@@ -130,7 +116,7 @@ def flight_summary(messages):
             if not is_vertical_mode and 'VTOL Position' in message['Message']:
                 is_vertical_mode = True
 
-                if is_flying: # start vertical timer if flying
+                if is_flying:
                     vertical_flight_start = message['TimeUS']
             elif is_vertical_mode and 'Exited VTOL' in message['Message']:
                 is_vertical_mode = False
@@ -143,7 +129,7 @@ def flight_summary(messages):
                 first_wp_attempted = True
             elif is_auto_mode:
                 wp_attempted += 1
-            
+
     print(
         f"Key flight data:\n"
         f"\tTotal Flights: {total_flights}\n"
