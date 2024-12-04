@@ -1,13 +1,9 @@
 from pymavlink import mavutil
-import matplotlib.pyplot as plt
-import numpy as np
 
-file = 'logs/00000075.BIN'
+file = 'logs/00000084.BIN'
 
 data = {
     'flight_summary': [],
-    'battery_voltage': [],
-    'flights_timestamps': []
 }
 
 flight_summary_types = { 'STAT', 'MODE', 'MSG', 'CMD' } # message types used for flight summary data
@@ -28,9 +24,6 @@ def parse_log(file):
 
         if message['mavpackettype'] in flight_summary_types:
             data['flight_summary'].append(message)
-
-        if message['mavpackettype'] == 'BAT':
-            data['battery_voltage'].append(message)
         
         total_messages += 1
         print(f'Processing {total_messages} messages...', end='\r')
@@ -67,7 +60,6 @@ def flight_summary(messages):
                 is_flying = True
                 total_flights += 1
                 flight_start = message['TimeUS']
-                data['flights_timestamps'].append(flight_start)
 
                 if is_auto_mode: # start auto timer if in auto mode
                     auto_flight_start = message['TimeUS']
@@ -84,7 +76,6 @@ def flight_summary(messages):
                 total_flight_time += flight_end - flight_start
 
                 flight_end = message['TimeUS']
-                data['flights_timestamps'].append(flight_end)
 
                 if is_auto_mode: # end auto timer if in auto mode
                     auto_flight_end = message['TimeUS']
@@ -149,7 +140,6 @@ def flight_summary(messages):
                     total_vertical_flight_time += vertical_flight_end - vertical_flight_start
         elif message['mavpackettype'] == 'CMD':
             if not first_wp_attempted:
-                wp_attempted += 1
                 first_wp_attempted = True
             elif is_auto_mode:
                 wp_attempted += 1
@@ -166,32 +156,6 @@ def flight_summary(messages):
         f"\tWaypoints Attempted: {wp_attempted}"
     )
 
-def battery_voltage(messages):
-    battery_voltage_times = []
-    battery_voltages = []
-
-    for message in messages:
-        battery_voltage_times.append(message['TimeUS'] / 1e6)
-        battery_voltages.append(message['Volt'])
-
-    average_voltage = np.mean(battery_voltages)
-    
-    plt.plot(battery_voltage_times, battery_voltages)
-
-    plt.title('Battery Voltage Over Time')
-    plt.xlabel('Time (s)')
-    plt.ylabel('Voltage (V)')
-
-    # add lines to indicate flight start and end times
-    for i in range(len(data['flights_timestamps']) // 2):
-        plt.axvline(data['flights_timestamps'][2 * i] / 1e6, color='red', linestyle = '--', label = 'Threshold')
-        plt.text(data['flights_timestamps'][2 * i] / 1e6, average_voltage, f'Flight {i + 1} Start', rotation=90, color='red', ha='right')
-        
-        plt.axvline(data['flights_timestamps'][2 * i + 1] / 1e6, color='red', linestyle = '--', label = 'Threshold')
-        plt.text(data['flights_timestamps'][2 * i + 1] / 1e6, average_voltage, f'Flight {i + 1} End', rotation=90, color='red', ha='right')
-
-    plt.show()
-
 if __name__ == '__main__':
     print('Parsing log file...')
     parse_log(file)
@@ -204,7 +168,5 @@ if __name__ == '__main__':
             break
         elif user == 'help':
             print('Available commands:')
-        elif user == 'battery voltage':
-            battery_voltage(data['battery_voltage'])
         else:
             print('Please enter a valid command. For a list of all commands, enter [help].')
