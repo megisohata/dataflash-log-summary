@@ -1,4 +1,5 @@
 import os
+import re
 from pymavlink import mavutil
 
 data = {
@@ -42,6 +43,8 @@ def flight_summary(messages):
     total_auto_time = total_vertical_flight_time = 0
 
     total_wp_attempted = 0
+    total_wp_deviance = 0
+    total_wp = 0
 
     for message in messages:
         if message['mavpackettype'] == 'STAT':
@@ -112,6 +115,10 @@ def flight_summary(messages):
         elif message['mavpackettype'] == 'MSG':
             if 'Mission: ' in message['Message']:
                 total_wp_attempted += 1
+            elif 'Reached waypoint' in message['Message']:
+                distance = re.search(r"dist (\d+)m", message['Message'])
+                total_wp_deviance += int(distance.group(1))
+                total_wp += 1
             elif not is_vertical_mode and 'VTOL Position' in message['Message']:
                 is_vertical_mode = True
 
@@ -133,13 +140,14 @@ def flight_summary(messages):
         f'\tAuto Flight Time: {total_auto_time / 1e6:.2f}s\n'
         f'\tManual Flight Time: {(total_flight_time - total_auto_time) / 1e6:.2f}s\n'
         f'\tWaypoints Attempted: {total_wp_attempted}\n'
+        f'\tAverage Waypoint Deviance: {0 if total_wp == 0 else total_wp_deviance / total_wp:.2f}m across {total_wp} waypoints\n'
         f'----------'
     )
 
-    return total_flights, total_auto_flights, total_flight_time, total_vertical_flight_time, total_auto_time, total_wp_attempted
+    return total_flights, total_auto_flights, total_flight_time, total_vertical_flight_time, total_auto_time, total_wp_attempted, total_wp_deviance, total_wp
 
 def process_logs():
-    total_flights = total_auto_flights = total_flight_time = total_vertical_flight_time = total_auto_time = total_wp_attempted = 0
+    total_flights = total_auto_flights = total_flight_time = total_vertical_flight_time = total_auto_time = total_wp_attempted = total_wp_deviance = total_wp = 0
 
     for file in os.listdir('logs'):
         if file.endswith('.BIN'):
@@ -148,13 +156,15 @@ def process_logs():
             data['flight_summary'].clear()
             
             parse_log(file_path)
-            flights, auto_flights, flight_time, vertical_flight_time, auto_time, wp_attempted = flight_summary(data['flight_summary'])
+            flights, auto_flights, flight_time, vertical_flight_time, auto_time, wp_attempted, wp_deviance, wp = flight_summary(data['flight_summary'])
             total_flights += flights
             total_auto_flights += auto_flights
             total_flight_time += flight_time
             total_vertical_flight_time += vertical_flight_time
             total_auto_time += auto_time
             total_wp_attempted += wp_attempted
+            total_wp_deviance += wp_deviance
+            total_wp += wp
 
     print(
         f'Total Flight Summary:\n'
@@ -165,7 +175,8 @@ def process_logs():
         f'\tTotal Horizontal Time: {(total_flight_time - total_vertical_flight_time) / 1e6:.2f}s\n'
         f'\tAuto Flight Time: {total_auto_time / 1e6:.2f}s\n'
         f'\tManual Flight Time: {(total_flight_time - total_auto_time) / 1e6:.2f}s\n'
-        f'\tWaypoints Attempted: {total_wp_attempted}'
+        f'\tWaypoints Attempted: {total_wp_attempted}\n'
+        f'\tAverage Waypoint Deviance: {0 if total_wp == 0 else total_wp_deviance / total_wp:.2f}m across {total_wp} waypoints'
     )
 
 process_logs()
