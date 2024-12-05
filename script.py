@@ -115,7 +115,7 @@ def flight_summary(messages):
         elif message['mavpackettype'] == 'MSG':
             if 'Mission: ' in message['Message']:
                 total_wp_attempted += 1
-            elif 'Reached waypoint' in message['Message']:
+            elif 'Reached waypoint' in message['Message'] or 'Passed waypoint' in message['Message']:
                 distance = re.search(r"dist (\d+)m", message['Message'])
                 total_wp_deviance += int(distance.group(1))
                 total_wp += 1
