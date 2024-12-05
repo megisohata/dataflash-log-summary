@@ -113,6 +113,8 @@ def flight_summary(messages):
                         vertical_flight_end = message['TimeUS']
                         total_vertical_flight_time += vertical_flight_end - vertical_flight_start
         elif message['mavpackettype'] == 'MSG':
+            if 'Mission: ' in message['Message']:
+                wp_attempted += 1
             if not is_vertical_mode and 'VTOL Position' in message['Message']:
                 is_vertical_mode = True
 
@@ -124,11 +126,6 @@ def flight_summary(messages):
                 if is_flying:
                     vertical_flight_end = message['TimeUS']
                     total_vertical_flight_time += vertical_flight_end - vertical_flight_start
-        elif message['mavpackettype'] == 'CMD':
-            if not first_wp_attempted:
-                first_wp_attempted = True
-            elif is_auto_mode:
-                wp_attempted += 1
 
     print(
         f"Key flight data:\n"
@@ -146,13 +143,3 @@ if __name__ == '__main__':
     print('Parsing log file...')
     parse_log(file)
     flight_summary(data['flight_summary'])
-
-    while True:
-        user = input('Enter a command: ')
-
-        if user == 'exit':
-            break
-        elif user == 'help':
-            print('Available commands:')
-        else:
-            print('Please enter a valid command. For a list of all commands, enter [help].')
