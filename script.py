@@ -168,5 +168,4 @@ def process_logs():
         f'\tWaypoints Attempted: {total_wp_attempted}'
     )
 
-
 process_logs()
