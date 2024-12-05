@@ -5,7 +5,7 @@ data = {
     'flight_summary': [],
 }
 
-flight_summary_types = {'STAT', 'MODE', 'MSG', 'CMD'}
+flight_summary_types = {'STAT', 'MODE', 'MSG'}
 vertical_modes = {17, 18, 19, 20, 21, 22, 23}
 
 def parse_log(file):
