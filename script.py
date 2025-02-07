@@ -1,6 +1,9 @@
+import csv
 import os
 import re
 from pymavlink import mavutil
+
+csv_data = []
 
 data = {
     'flight_summary': [],
@@ -27,9 +30,9 @@ def parse_log(file):
         print(f'Processing {total_messages} messages for {file}...', end='\r')
 
     print(f'Finished processing {total_messages} messages for {file}.')
-    print(f'Flight Summary for {file}:')
+    print(f'---------- Flight Summary for {file} ----------')
 
-def flight_summary(messages):
+def flight_summary(messages, file):
     is_flying = False
     is_auto_mode = False
     is_auto_flight = False
@@ -131,23 +134,41 @@ def flight_summary(messages):
                     vertical_flight_end = message['TimeUS']
                     total_vertical_flight_time += vertical_flight_end - vertical_flight_start
 
+    total_flight_time = round(total_flight_time / 1e6, 2)
+    total_vertical_flight_time = round(total_vertical_flight_time / 1e6, 2)
+    total_horizontal_flight_time = round((total_flight_time - total_vertical_flight_time) / 1e6, 2)
+    total_auto_time = round(total_auto_time / 1e6, 2)
+    manual_flight_time = round((total_flight_time - total_auto_time) / 1e6, 2)
+    average_wp_deviance = 0 if total_wp == 0 else round(total_wp_deviance / total_wp, 2)
+
     print(
         f'\tTotal Flights: {total_flights}\n'
         f'\tTotal Auto Flights: {total_auto_flights}\n'
-        f'\tTotal Flight Time: {total_flight_time / 1e6:.2f}s\n'
-        f'\tTotal Vertical Flight Time: {total_vertical_flight_time / 1e6:.2f}s\n'
-        f'\tTotal Horizontal Time: {(total_flight_time - total_vertical_flight_time) / 1e6:.2f}s\n'
-        f'\tAuto Flight Time: {total_auto_time / 1e6:.2f}s\n'
-        f'\tManual Flight Time: {(total_flight_time - total_auto_time) / 1e6:.2f}s\n'
+        f'\tTotal Flight Time: {total_flight_time}s\n'
+        f'\tTotal Vertical Flight Time: {total_vertical_flight_time}s\n'
+        f'\tTotal Horizontal Time: {total_horizontal_flight_time}s\n'
+        f'\tAuto Flight Time: {total_auto_time}s\n'
+        f'\tManual Flight Time: {manual_flight_time}s\n'
         f'\tWaypoints Attempted: {total_wp_attempted}\n'
-        f'\tAverage Waypoint Deviance: {0 if total_wp == 0 else total_wp_deviance / total_wp:.2f}m across {total_wp} waypoints\n'
-        f'----------'
+        f'\tAverage Waypoint Deviance: {average_wp_deviance}m across {total_wp} waypoints'
     )
 
-    return total_flights, total_auto_flights, total_flight_time, total_vertical_flight_time, total_auto_time, total_wp_attempted, total_wp_deviance, total_wp
+    csv_data.append({'file': file, 
+                     'flights': total_flights, 
+                     'auto_flights': total_auto_flights, 
+                     'flight_time': total_flight_time, 
+                     'vertical_flight_time': total_vertical_flight_time, 
+                     'horizontal_flight_time': total_horizontal_flight_time,
+                     'auto_time': total_auto_time, 
+                     'manual_time': manual_flight_time,
+                     'wp_attempted': total_wp_attempted, 
+                     'wp': total_wp,
+                     'average_wp_deviance': average_wp_deviance})
+
+    return total_flights, total_auto_flights, total_flight_time, total_vertical_flight_time, total_horizontal_flight_time, total_auto_time, manual_flight_time, total_wp_attempted, total_wp, total_wp_deviance
 
 def process_logs():
-    total_flights = total_auto_flights = total_flight_time = total_vertical_flight_time = total_auto_time = total_wp_attempted = total_wp_deviance = total_wp = 0
+    total_flights = total_auto_flights = total_flight_time = total_vertical_flight_time = total_horizontal_flight_time = total_auto_time = manual_flight_time = total_wp_attempted = total_wp = total_wp_deviance = 0
 
     for file in os.listdir('logs'):
         if file.endswith('.BIN'):
@@ -156,27 +177,60 @@ def process_logs():
             data['flight_summary'].clear()
             
             parse_log(file_path)
-            flights, auto_flights, flight_time, vertical_flight_time, auto_time, wp_attempted, wp_deviance, wp = flight_summary(data['flight_summary'])
+            flights, auto_flights, flight_time, vertical_flight_time, horizontal_flight_time, auto_time, manual_time, wp_attempted, wp, wp_deviance = flight_summary(data['flight_summary'], file)
             total_flights += flights
             total_auto_flights += auto_flights
             total_flight_time += flight_time
             total_vertical_flight_time += vertical_flight_time
+            total_horizontal_flight_time += horizontal_flight_time
             total_auto_time += auto_time
+            manual_flight_time += manual_time
             total_wp_attempted += wp_attempted
-            total_wp_deviance += wp_deviance
             total_wp += wp
+            total_wp_deviance += wp_deviance
+            average_wp_deviance = 0 if total_wp == 0 else round(total_wp_deviance / total_wp, 2)
 
     print(
-        f'Total Flight Summary:\n'
+        f'========== TOTAL FLIGHT SUMMARY ==========\n'
         f'\tTotal Flights: {total_flights}\n'
         f'\tTotal Auto Flights: {total_auto_flights}\n'
-        f'\tTotal Flight Time: {total_flight_time / 1e6:.2f}s\n'
-        f'\tTotal Vertical Flight Time: {total_vertical_flight_time / 1e6:.2f}s\n'
-        f'\tTotal Horizontal Time: {(total_flight_time - total_vertical_flight_time) / 1e6:.2f}s\n'
-        f'\tAuto Flight Time: {total_auto_time / 1e6:.2f}s\n'
-        f'\tManual Flight Time: {(total_flight_time - total_auto_time) / 1e6:.2f}s\n'
+        f'\tTotal Flight Time: {total_flight_time}s\n'
+        f'\tTotal Vertical Flight Time: {total_vertical_flight_time}s\n'
+        f'\tTotal Horizontal Time: {total_horizontal_flight_time}s\n'
+        f'\tAuto Flight Time: {total_auto_time}s\n'
+        f'\tManual Flight Time: {manual_flight_time}s\n'
         f'\tWaypoints Attempted: {total_wp_attempted}\n'
-        f'\tAverage Waypoint Deviance: {0 if total_wp == 0 else total_wp_deviance / total_wp:.2f}m across {total_wp} waypoints'
+        f'\tAverage Waypoint Deviance: {average_wp_deviance}m across {total_wp} waypoints\n'
+        f'========================================='
     )
+
+    csv_data.append({'file': 'TOTAL', 
+                     'flights': total_flights, 
+                     'auto_flights': total_auto_flights, 
+                     'flight_time': total_flight_time, 
+                     'vertical_flight_time': total_vertical_flight_time, 
+                     'horizontal_flight_time': total_horizontal_flight_time,
+                     'auto_time': total_auto_time, 
+                     'manual_time': manual_flight_time,
+                     'wp_attempted': total_wp_attempted, 
+                     'wp': total_wp,
+                     'average_wp_deviance': average_wp_deviance})
+
+    fieldnames = ['file', 
+                  'flights', 
+                  'auto_flights', 
+                  'flight_time', 
+                  'vertical_flight_time', 
+                  'horizontal_flight_time', 
+                  'auto_time', 
+                  'manual_time', 
+                  'wp_attempted', 
+                  'wp', 
+                  'average_wp_deviance']
+
+    with open('flight_summary.csv', mode='w', newline='') as file:
+        writer = csv.DictWriter(file, fieldnames)
+        writer.writeheader()
+        writer.writerows(csv_data)
 
 process_logs()
