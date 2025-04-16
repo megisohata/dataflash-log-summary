@@ -1,0 +1,3 @@
+file,flights,auto_flights,flight_time,vertical_flight_time,horizontal_flight_time,auto_time,manual_time,wp_attempted,wp,average_wp_deviance
+00000074.BIN,2,3,432.36,239.16,0.0,160.48,0.0,18,14,30.5
+TOTAL,2,3,432.36,239.16,0.0,160.48,0.0,18,14,30.5
