@@ -1,4 +1,5 @@
 from pymavlink import mavutil
+import os
 import csv
 import re
 
@@ -35,6 +36,10 @@ class LogSummary:
         self.wp_data = {} # Format: {wp_num: [type, lat, lng, alt, deviance]}
         self.wp_count = 0
         self.wp_cmd = False
+
+        self.parse_log()
+        self.process_messages()
+        self.to_csv()
 
     def parse_log(self):
         message_count = 0
@@ -174,3 +179,54 @@ class LogSummary:
                 # The plane stopped flying in vertical mode.
                 self.total_vertical_time += message['TimeUS'] - self.vertical_start_time
                 self.vertical_start_time = None
+
+    def to_csv(self):
+        file = os.path.basename(self.file)
+        name, _ = os.path.splitext(file)
+        csv_file = os.path.join('summaries', f"{name}.csv")
+
+        total_flight_time = round(self.total_flight_time / 1e6, 2)
+        total_manual_time = round((self.total_flight_time - self.total_auto_time) / 1e6, 2)
+        total_auto_time = round(self.total_auto_time / 1e6, 2)
+        total_vertical_time = round(self.total_vertical_time / 1e6, 2)
+        total_horizontal_time = round((self.total_flight_time - self.total_vertical_time) / 1e6, 2)
+        wp_attempted = self.wp_count
+        wp_successful = self.wp_count
+        wp_deviances = [wp[4] for wp in self.wp_data.values() if wp[4] is not None]
+        avg_wp_deviance = round(sum(wp_deviances) / len(wp_deviances), 1) if wp_deviances else 0
+
+        with open(csv_file, mode='w', newline='') as file:
+            writer = csv.writer(file)
+
+            writer.writerow([
+                'flights', 'auto_flights', 
+                'flight_time', 'manual_time', 'auto_time', 'vertical_flight_time', 'horizontal_flight_time', 
+                'wp_attempted', 'wp_successful', 'average_wp_deviance'
+            ])
+
+            writer.writerow([
+                self.flights,
+                self.auto_flights,
+                total_flight_time,
+                total_manual_time,
+                total_auto_time,
+                total_vertical_time,
+                total_horizontal_time,
+                wp_attempted,
+                wp_successful,
+                avg_wp_deviance
+            ])
+
+            writer.writerow([])
+
+            writer.writerow(['wp_number', 'type', 'lat', 'lng', 'alt', 'deviance'])
+
+            for wp_num, wp_info in self.wp_data.items():
+                writer.writerow([
+                    wp_num,
+                    wp_info[0],
+                    wp_info[1],
+                    wp_info[2],
+                    wp_info[3],
+                    wp_info[4]
+                ])
