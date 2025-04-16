@@ -1,6 +1,5 @@
 from pymavlink import mavutil
 import csv
-import os
 import re
 
 class LogSummary:
@@ -10,7 +9,7 @@ class LogSummary:
     but it can be extended to support other types of flight analysis.
     """
 
-    MESSAGE_TYPES = {'STAT', 'MODE', 'MSG'} # Set of relevant message types
+    MESSAGE_TYPES = {'CMD', 'MODE', 'MSG', 'STAT'} # Set of relevant message types
     AUTO_MODE = 10 # Auto mode number
     VERTICAL_MODES = {17, 18, 19, 20, 21, 22, 23, 25} # Set of vertical mode numbers
 
@@ -32,6 +31,10 @@ class LogSummary:
         self.is_vertical = False
         self.vertical_start_time = None
         self.total_vertical_time = 0
+
+        self.wp_data = {} # Format: {wp_num: [type, lat, lng, alt, deviance]}
+        self.wp_count = 0
+        self.wp_cmd = False
 
     def parse_log(self):
         message_count = 0
@@ -57,54 +60,37 @@ class LogSummary:
         for message in self.messages:
             type = message['mavpackettype']
 
-            if type == 'STAT':
-                self.process_stat_message(message)
+            if type == 'CMD':
+                self.process_cmd_message(message)
             elif type == 'MODE':
                 self.process_mode_message(message)
             elif type == 'MSG':
                 self.process_msg_message(message)
+            elif type == 'STAT':
+                self.process_stat_message(message)
         
         print(f'---------- Flight Summary for {self.file} ----------')
         print(f'Total flights: {self.flights}')
         print(f'Total auto flights: {self.auto_flights}')
         print(f'Total flight time: {round(self.total_flight_time / 1e6, 2)} seconds')
+        print(f'Total manual flight time: {round((self.total_flight_time - self.total_auto_time) / 1e6, 2)} seconds')
         print(f'Total auto flight time: {round(self.total_auto_time / 1e6, 2)} seconds')
         print(f'Total vertical flight time: {round(self.total_vertical_time / 1e6, 2)} seconds')
         print(f'Total horizontal flight time: {round((self.total_flight_time - self.total_vertical_time) / 1e6, 2)} seconds')
+        print(f'Total waypoints: {self.wp_count}')
+        print(f'Waypoint data: {self.wp_data}')
+        print(f'---------- End of Flight Summary ----------')
 
-    def process_stat_message(self, message):
-        if not self.is_flying and message['isFlyProb'] >= 0.8:
-            # The plane has started flying!
-            self.flights += 1
-            self.is_flying = True
-            self.flight_start_time = message['TimeUS']
-
-            if self.is_auto:
-                # The plane started flying in auto mode.
-                self.auto_flights += 1
-                self.auto_start_time = message['TimeUS']
-
-            if self.is_vertical:
-                # The plane started flying in vertical mode.
-                self.vertical_start_time = message['TimeUS']
-        elif self.is_flying and message['isFlyProb'] < 0.8:
-            # The plane has stopped flying.
-            self.is_flying = False
-            self.total_flight_time += message['TimeUS'] - self.flight_start_time
-            self.flight_start_time = None
-
-            if self.is_auto:
-                # The plane stopped flying in auto mode.
-                self.total_auto_time += message['TimeUS'] - self.auto_start_time
-                self.auto_start_time = None
-
-            if self.is_vertical:
-                # The plane stopped flying in vertical mode.
-                self.total_vertical_time += message['TimeUS'] - self.vertical_start_time
-                self.vertical_start_time = None
+    def process_cmd_message(self, message):
+        if self.wp_cmd:
+            self.wp_data[self.wp_count][1] = message['Lat']
+            self.wp_data[self.wp_count][2] = message['Lng']
+            self.wp_data[self.wp_count][3] = message['Alt']
+            self.wp_cmd = False
 
     def process_mode_message(self, message):
         mode = message['Mode']
+
         if not self.is_auto and mode == self.AUTO_MODE:
             # The plane is in auto mode.
             self.is_auto = True
@@ -141,13 +127,50 @@ class LogSummary:
     def process_msg_message(self, message):
         msg = message['Message']
 
-        if self.is_auto:
-            if not self.is_vertical and re.match(r"VTOL position\d+ started v=\d+(?:\.\d+)? d=\d+(?:\.\d+)? h=\d+(?:\.\d+)?", msg):
-                # The plane is in vertical flight while in auto mode.
-                self.is_vertical = True
+        if msg.startswith('Mission: '):
+            self.wp_count += 1
+            self.wp_cmd = True
+            self.wp_data[self.wp_count] = [re.match(r'Mission: \d+ ([A-Za-z ]+)', msg).group(1), None, None, None, None]
+        elif msg.startswith('Reached waypoint ') or msg.startswith('Passed waypoint '):
+            deviance = int(re.search(r"dist (\d+)m", message['Message']).group(1))
+            self.wp_data[self.wp_count][4] = deviance
+        elif not self.is_vertical and re.match(r'VTOL position\d+ started v=\d+(?:\.\d+)? d=\d+(?:\.\d+)? h=\d+(?:\.\d+)?', msg):
+            # The plane is in vertical flight while in auto mode.
+            self.is_vertical = True
+            self.vertical_start_time = message['TimeUS']
+        elif self.is_vertical and msg == 'EXITED VTOL':
+            # The plane has exited vertical flight while in auto mode.
+            self.is_vertical = False
+            self.total_vertical_time += message['TimeUS'] - self.vertical_start_time
+            self.vertical_start_time = None
+    
+    def process_stat_message(self, message):
+        if not self.is_flying and message['isFlyProb'] >= 0.8:
+            # The plane has started flying!
+            self.flights += 1
+            self.is_flying = True
+            self.flight_start_time = message['TimeUS']
+
+            if self.is_auto:
+                # The plane started flying in auto mode.
+                self.auto_flights += 1
+                self.auto_start_time = message['TimeUS']
+
+            if self.is_vertical:
+                # The plane started flying in vertical mode.
                 self.vertical_start_time = message['TimeUS']
-            elif self.is_vertical and msg == "EXITED VTOL":
-                # The plane has exited vertical flight while in auto mode.
-                self.is_vertical = False
+        elif self.is_flying and message['isFlyProb'] < 0.8:
+            # The plane has stopped flying.
+            self.is_flying = False
+            self.total_flight_time += message['TimeUS'] - self.flight_start_time
+            self.flight_start_time = None
+
+            if self.is_auto:
+                # The plane stopped flying in auto mode.
+                self.total_auto_time += message['TimeUS'] - self.auto_start_time
+                self.auto_start_time = None
+
+            if self.is_vertical:
+                # The plane stopped flying in vertical mode.
                 self.total_vertical_time += message['TimeUS'] - self.vertical_start_time
                 self.vertical_start_time = None
