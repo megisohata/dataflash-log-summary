@@ -1,11 +1,10 @@
-log,flights,auto_flights,flight_time,manual_time,auto_time,vertical_flight_time,horizontal_flight_time,wp_attempted,wp_successful,average_wp_deviance
+Log,# Flights,# Auto Flights,Flight Time (s),Auto Flight Time (s),Manual Flight Time (s),Vertical Flight Time (s),Horizontal Flight Time (s),Waypoints Attempted,Waypoints Hit,Average Waypoint Deviance (m)
 00000084,3,1,650.93,206.24,444.69,505.19,145.75,14,14,17.0
 00000085,1,0,117.59,0.0,117.59,117.59,0.0,0,0,N/A
-00000074,2,3,432.36,78.53,353.83,219.58,212.78,18,18,23.72
-TOTAL,6,4,1200,284,916,842,358,32,32,20.4
+00000074,2,2,432.36,78.53,353.83,219.58,212.78,18,18,23.72
+TOTAL,6,3,1200,284,916,842,358,32,32,40
 
-log,wp_number,type,lat,lng,alt,deviance
-00000084,#,Type,Latitude,Longitude,Altitude,Deviance (m)
+Log,#,Type,Latitude,Longitude,Altitude (m),Deviance (m)
 00000084,1,WP,42.6536379,-76.7969224,60.0,3
 00000084,2,WP,42.6554583,-76.7969606,60.0,24
 00000084,3,WP,42.6558711,-76.7979303,60.0,30
@@ -20,7 +19,6 @@ log,wp_number,type,lat,lng,alt,deviance
 00000084,12,LoitTime,42.6541399,-76.7972031,60.0,N/A
 00000084,13,VTOLTransition,0.0,0.0,0.0,N/A
 00000084,14,WP,42.6552429,-76.7972016,60.0,39
-00000074,#,Type,Latitude,Longitude,Altitude,Deviance (m)
 00000074,1,WP,42.6543552,-76.7967724,40.0,27
 00000074,2,WP,42.6546984,-76.7973196,40.0,28
 00000074,3,WP,42.654442,-76.7980277,40.0,25

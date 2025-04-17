@@ -3,7 +3,7 @@ import os
 import csv
 import re
 
-# TODO: double counting auto flights, wp cs combining, printing out joint summary, having summary csv save in summaries folder
+# TODO: printing out joint summary, joint csv
 
 class LogSummary:
     """
@@ -22,6 +22,7 @@ class LogSummary:
 
         self.flights = 0
         self.auto_flights = 0
+        self.auto_counted = False
 
         self.is_flying = False
         self.flight_start_time = None
@@ -94,7 +95,10 @@ class LogSummary:
 
             if self.is_flying:
                 # If the plane is flying, calculate the auto flight time.
-                self.auto_flights += 1
+                if not self.auto_counted:
+                    self.auto_flights += 1
+                    self.auto_counted = True
+
                 self.auto_start_time = message['TimeUS']
         elif self.is_auto and mode != self.AUTO_MODE:
             # The plane is not in auto mode.
@@ -146,11 +150,15 @@ class LogSummary:
             # The plane has started flying!
             self.flights += 1
             self.is_flying = True
+            self.auto_counted = False
             self.flight_start_time = message['TimeUS']
 
             if self.is_auto:
                 # The plane started flying in auto mode.
-                self.auto_flights += 1
+                if not self.auto_counted:
+                    self.auto_flights += 1
+                    self.auto_counted = True
+
                 self.auto_start_time = message['TimeUS']
 
             if self.is_vertical:
@@ -270,7 +278,14 @@ class LogSummary:
         print(border)
 
         if self.wp_count > 0:
-            headers = ["#", "Type", "Latitude", "Longitude", "Altitude (m)", "Deviance (m)"]
+            headers = [
+                "#", 
+                "Type", 
+                "Latitude", 
+                "Longitude", 
+                "Altitude (m)", 
+                "Deviance (m)"
+            ]
 
             rows = []
             for wp_num in self.wp_data:

@@ -1,5 +1,5 @@
 # Flights,# Auto Flights,Flight Time (s),Auto Flight Time (s),Manual Flight Time (s),Vertical Flight Time (s),Horizontal Flight Time (s),Waypoints Attempted,Waypoints Hit,Average Waypoint Deviance (m)
-2,3,432.36,78.53,353.83,219.58,212.78,18,18,23.72
+2,2,432.36,78.53,353.83,219.58,212.78,18,18,23.72
 
 #,Type,Latitude,Longitude,Altitude,Deviance (m)
 1,WP,42.6543552,-76.7967724,40.0,27
