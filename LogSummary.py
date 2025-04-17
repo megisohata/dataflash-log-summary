@@ -3,6 +3,8 @@ import os
 import csv
 import re
 
+# TODO: double counting auto flights, wp cs combining, printing out joint summary, having summary csv save in summaries folder
+
 class LogSummary:
     """
     A class for summarizing flight logs.
@@ -36,10 +38,13 @@ class LogSummary:
         self.wp_data = {} # Format: {wp_num: [type, lat, lng, alt, deviance]}
         self.wp_count = 0
         self.wp_cmd = False
+        self.avg_wp_deviance = None
 
         self.parse_log()
         self.process_messages()
         self.to_csv()
+        self.print_summary()
+        print(f"\033[1mLog Summary for {self.file} complete!\033[0m")
 
     def parse_log(self):
         message_count = 0
@@ -57,9 +62,8 @@ class LogSummary:
                 self.messages.append(message)
 
             message_count += 1
-            print(f'Processing {message_count} messages for {self.file}...', end='\r')
         
-        print(f'Finished processing {message_count} messages for {self.file}.')
+        print(f'Processed {message_count} messages for {self.file}.')
 
     def process_messages(self):
         for message in self.messages:
@@ -73,18 +77,6 @@ class LogSummary:
                 self.process_msg_message(message)
             elif type == 'STAT':
                 self.process_stat_message(message)
-        
-        print(f'---------- Flight Summary for {self.file} ----------')
-        print(f'Total flights: {self.flights}')
-        print(f'Total auto flights: {self.auto_flights}')
-        print(f'Total flight time: {round(self.total_flight_time / 1e6, 2)} seconds')
-        print(f'Total manual flight time: {round((self.total_flight_time - self.total_auto_time) / 1e6, 2)} seconds')
-        print(f'Total auto flight time: {round(self.total_auto_time / 1e6, 2)} seconds')
-        print(f'Total vertical flight time: {round(self.total_vertical_time / 1e6, 2)} seconds')
-        print(f'Total horizontal flight time: {round((self.total_flight_time - self.total_vertical_time) / 1e6, 2)} seconds')
-        print(f'Total waypoints: {self.wp_count}')
-        print(f'Waypoint data: {self.wp_data}')
-        print(f'---------- End of Flight Summary ----------')
 
     def process_cmd_message(self, message):
         if self.wp_cmd:
@@ -186,47 +178,128 @@ class LogSummary:
         csv_file = os.path.join('summaries', f"{name}.csv")
 
         total_flight_time = round(self.total_flight_time / 1e6, 2)
-        total_manual_time = round((self.total_flight_time - self.total_auto_time) / 1e6, 2)
         total_auto_time = round(self.total_auto_time / 1e6, 2)
+        total_manual_time = round((self.total_flight_time - self.total_auto_time) / 1e6, 2)
         total_vertical_time = round(self.total_vertical_time / 1e6, 2)
         total_horizontal_time = round((self.total_flight_time - self.total_vertical_time) / 1e6, 2)
-        wp_attempted = self.wp_count
-        wp_successful = self.wp_count
-        wp_deviances = [wp[4] for wp in self.wp_data.values() if wp[4] is not None]
-        avg_wp_deviance = round(sum(wp_deviances) / len(wp_deviances), 1) if wp_deviances else 0
+
+        for wp in self.wp_data.values():
+            if wp[4] is not None:
+                if self.avg_wp_deviance is None:
+                    self.avg_wp_deviance = wp[4]
+                else:
+                    self.avg_wp_deviance += wp[4]
+        
+        if self.avg_wp_deviance is not None:
+            self.avg_wp_deviance = round(self.avg_wp_deviance / self.wp_count, 2)
 
         with open(csv_file, mode='w', newline='') as file:
             writer = csv.writer(file)
 
             writer.writerow([
-                'flights', 'auto_flights', 
-                'flight_time', 'manual_time', 'auto_time', 'vertical_flight_time', 'horizontal_flight_time', 
-                'wp_attempted', 'wp_successful', 'average_wp_deviance'
+                '# Flights', 
+                '# Auto Flights', 
+                'Flight Time (s)', 
+                'Auto Flight Time (s)', 
+                'Manual Flight Time (s)', 
+                'Vertical Flight Time (s)', 
+                'Horizontal Flight Time (s)', 
+                'Waypoints Attempted', 
+                'Waypoints Hit', 
+                'Average Waypoint Deviance (m)'
             ])
 
             writer.writerow([
                 self.flights,
                 self.auto_flights,
                 total_flight_time,
-                total_manual_time,
                 total_auto_time,
+                total_manual_time,
                 total_vertical_time,
                 total_horizontal_time,
-                wp_attempted,
-                wp_successful,
-                avg_wp_deviance
+                self.wp_count,
+                self.wp_count,
+                self.avg_wp_deviance if self.avg_wp_deviance is not None else 'N/A'
             ])
 
-            writer.writerow([])
+            if self.wp_count > 0:
+                writer.writerow([])
+                writer.writerow(['#', 'Type', 'Latitude', 'Longitude', 'Altitude', 'Deviance (m)'])
 
-            writer.writerow(['wp_number', 'type', 'lat', 'lng', 'alt', 'deviance'])
+                for wp_num, wp_info in self.wp_data.items():
+                    writer.writerow([
+                        wp_num,
+                        wp_info[0],
+                        wp_info[1],
+                        wp_info[2],
+                        wp_info[3],
+                        wp_info[4] if wp_info[4] is not None else 'N/A'
+                    ])
 
-            for wp_num, wp_info in self.wp_data.items():
-                writer.writerow([
-                    wp_num,
-                    wp_info[0],
-                    wp_info[1],
-                    wp_info[2],
-                    wp_info[3],
-                    wp_info[4]
-                ])
+        print(f"Summary saved to {csv_file}.")
+
+    def print_summary(self):
+        rows = [
+            ('# Flights', self.flights),
+            ('# Auto Flights', self.auto_flights),
+            ('Flight Time (s)', f"{round(self.total_flight_time / 1e6, 2)}"),
+            ('Auto Flight Time (s)', f"{round(self.total_auto_time / 1e6, 2)}"),
+            ('Manual Flight Time (s)', f"{round((self.total_flight_time - self.total_auto_time) / 1e6, 2)}"),
+            ('Vertical Flight Time (s)', f"{round(self.total_vertical_time / 1e6, 2)}"),
+            ('Horizontal Flight Time (s)', f"{round((self.total_flight_time - self.total_vertical_time) / 1e6, 2)}"),
+            ('Waypoints Attempted', self.wp_count),
+            ('Waypoints Hit', self.wp_count),
+            ('Average Waypoint Deviance (m)', f"{self.avg_wp_deviance if self.avg_wp_deviance else 'N/A'}")
+        ]
+
+        label_width = 40
+        value_width = 40
+        total_width = label_width + 3 + value_width
+
+        border = '-' * (total_width + 4)
+
+        print(border)
+        print(f"| {'Flight Summary for ' + self.file:^{total_width}} |")
+        print(border)
+
+        for label, value in rows:
+            print(f"| {label:<{label_width}} : {str(value):>{value_width}} |")
+
+        print(border)
+        print(f"| {'End of Flight Summary':^{total_width}} |")
+        print(border)
+
+        if self.wp_count > 0:
+            headers = ["#", "Type", "Latitude", "Longitude", "Altitude (m)", "Deviance (m)"]
+
+            rows = []
+            for wp_num in self.wp_data:
+                row = [wp_num] + self.wp_data[wp_num][:4] + [self.wp_data[wp_num][4] if self.wp_data[wp_num][4] is not None else 'N/A']
+                rows.append(row)
+
+            col_widths = [4, 16, 12, 12, 12, 12]
+            total_width = sum(col_widths) + 3 * len(headers) + 1
+
+            border = "-" * total_width
+            print(border)
+            print(f"| {'Waypoint Table for ' + self.file:^{total_width - 4}} |")
+            print(border)
+
+            header_line = "| " + " | ".join(
+                f"{headers[i]:^{col_widths[i]}}" for i in range(len(headers))
+            ) + " |"
+            print(header_line)
+            print(border)
+
+            for row in rows:
+                row_line = "| " + " | ".join(
+                    f"{cell:<{col_widths[i]}}" if i == 1 else f"{cell:^{col_widths[i]}}"
+                    for i, cell in enumerate(row)
+                ) + " |"
+                print(row_line)
+
+            print(border)
+            print(f'| {'End of Waypoint Table':^{total_width - 4}} |')
+            print(border)
+        else:
+            print('No waypoints found.')
