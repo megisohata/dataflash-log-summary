@@ -71,10 +71,12 @@ class LogSummary:
             type = message['mavpackettype']
 
             if type == 'CMD':
+                print(message)
                 self.process_cmd_message(message)
             elif type == 'MODE':
                 self.process_mode_message(message)
             elif type == 'MSG':
+                print(message)
                 self.process_msg_message(message)
             elif type == 'STAT':
                 self.process_stat_message(message)
@@ -191,15 +193,16 @@ class LogSummary:
         total_vertical_time = round(self.total_vertical_time / 1e6, 2)
         total_horizontal_time = round((self.total_flight_time - self.total_vertical_time) / 1e6, 2)
 
+        deviance_sum = 0
+        deviance_count = 0
+
         for wp in self.wp_data.values():
             if wp[4] is not None:
-                if self.avg_wp_deviance is None:
-                    self.avg_wp_deviance = wp[4]
-                else:
-                    self.avg_wp_deviance += wp[4]
-        
-        if self.avg_wp_deviance is not None:
-            self.avg_wp_deviance = round(self.avg_wp_deviance / self.wp_count, 2)
+                deviance_sum += wp[4]
+                deviance_count += 1
+
+        if deviance_count > 0:
+            self.avg_wp_deviance = round(deviance_sum / deviance_count, 2)
 
         with open(csv_file, mode='w', newline='') as file:
             writer = csv.writer(file)
@@ -278,43 +281,46 @@ class LogSummary:
         print(border)
 
         if self.wp_count > 0:
-            headers = [
-                "#", 
-                "Type", 
-                "Latitude", 
-                "Longitude", 
-                "Altitude (m)", 
-                "Deviance (m)"
-            ]
+            try:
+                headers = [
+                    "#", 
+                    "Type", 
+                    "Latitude", 
+                    "Longitude", 
+                    "Altitude (m)", 
+                    "Deviance (m)"
+                ]
 
-            rows = []
-            for wp_num in self.wp_data:
-                row = [wp_num] + self.wp_data[wp_num][:4] + [self.wp_data[wp_num][4] if self.wp_data[wp_num][4] is not None else 'N/A']
-                rows.append(row)
+                rows = []
+                for wp_num in self.wp_data:
+                    row = [wp_num] + self.wp_data[wp_num][:4] + [self.wp_data[wp_num][4] if self.wp_data[wp_num][4] is not None else 'N/A']
+                    rows.append(row)
 
-            col_widths = [4, 16, 12, 12, 12, 12]
-            total_width = sum(col_widths) + 3 * len(headers) + 1
+                col_widths = [4, 16, 12, 12, 12, 12]
+                total_width = sum(col_widths) + 3 * len(headers) + 1
 
-            border = "-" * total_width
-            print(border)
-            print(f"| {'Waypoint Table for ' + self.file:^{total_width - 4}} |")
-            print(border)
+                border = "-" * total_width
+                print(border)
+                print(f"| {'Waypoint Table for ' + self.file:^{total_width - 4}} |")
+                print(border)
 
-            header_line = "| " + " | ".join(
-                f"{headers[i]:^{col_widths[i]}}" for i in range(len(headers))
-            ) + " |"
-            print(header_line)
-            print(border)
-
-            for row in rows:
-                row_line = "| " + " | ".join(
-                    f"{cell:<{col_widths[i]}}" if i == 1 else f"{cell:^{col_widths[i]}}"
-                    for i, cell in enumerate(row)
+                header_line = "| " + " | ".join(
+                    f"{headers[i]:^{col_widths[i]}}" for i in range(len(headers))
                 ) + " |"
-                print(row_line)
+                print(header_line)
+                print(border)
 
-            print(border)
-            print(f'| {'End of Waypoint Table':^{total_width - 4}} |')
-            print(border)
+                for row in rows:
+                    row_line = "| " + " | ".join(
+                        f"{cell:<{col_widths[i]}}" if i == 1 else f"{cell:^{col_widths[i]}}"
+                        for i, cell in enumerate(row)
+                    ) + " |"
+                    print(row_line)
+
+                print(border)
+                print(f'| {'End of Waypoint Table':^{total_width - 4}} |')
+                print(border)
+            except:
+                print('Error with waypoint data. Something funky happened during test flight. Check the log file.')
         else:
             print('No waypoints found.')
