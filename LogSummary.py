@@ -12,7 +12,11 @@ class LogSummary:
     but it can be extended to support other types of flight analysis.
     """
 
+<<<<<<< HEAD
     MESSAGE_TYPES = {'CMD', 'MODE', 'MSG', 'STAT'} # Set of relevant message types
+=======
+    MESSAGE_TYPES = {'STAT', 'MODE', 'MSG', 'CMD'} # Set of relevant message types
+>>>>>>> a58ff517868dd3f446651dfa53bb72bf3e0b6632
     AUTO_MODE = 10 # Auto mode number
     VERTICAL_MODES = {17, 18, 19, 20, 21, 22, 23, 25} # Set of vertical mode numbers
 
@@ -36,6 +40,7 @@ class LogSummary:
         self.vertical_start_time = None
         self.total_vertical_time = 0
 
+<<<<<<< HEAD
         self.wp_data = {} # Format: {wp_num: [type, lat, lng, alt, deviance]}
         self.wp_count = 0
         self.wp_cmd = False
@@ -46,6 +51,11 @@ class LogSummary:
         self.to_csv()
         self.print_summary()
         print(f"\033[1mLog Summary for {self.file} complete!\033[0m")
+=======
+        self.set_wp = []
+        self.wp_count = 0
+        self.wp_data = {} # Format: {wp_num: [type, lat, lng, alt, deviance]}
+>>>>>>> a58ff517868dd3f446651dfa53bb72bf3e0b6632
 
     def parse_log(self):
         message_count = 0
@@ -63,6 +73,12 @@ class LogSummary:
                 self.messages.append(message)
 
             message_count += 1
+<<<<<<< HEAD
+=======
+
+            if message_count % 1000 == 0:
+                print(f'Processed {message_count} messages for {self.file}.', end='\r')
+>>>>>>> a58ff517868dd3f446651dfa53bb72bf3e0b6632
         
         print(f'Processed {message_count} messages for {self.file}.')
 
@@ -78,6 +94,7 @@ class LogSummary:
             elif type == 'MSG':
                 print(message)
                 self.process_msg_message(message)
+<<<<<<< HEAD
             elif type == 'STAT':
                 self.process_stat_message(message)
 
@@ -87,6 +104,55 @@ class LogSummary:
             self.wp_data[self.wp_count][2] = message['Lng']
             self.wp_data[self.wp_count][3] = message['Alt']
             self.wp_cmd = False
+=======
+            elif type == 'CMD':
+                self.process_cmd_message(message)
+        
+        print(f'---------- Flight Summary for {self.file} ----------')
+        print(f'Total flights: {self.flights}')
+        print(f'Total auto flights: {self.auto_flights}')
+        print(f'Total flight time: {round(self.total_flight_time / 1e6, 2)} seconds')
+        print(f'Total auto flight time: {round(self.total_auto_time / 1e6, 2)} seconds')
+        print(f'Total vertical flight time: {round(self.total_vertical_time / 1e6, 2)} seconds')
+        print(f'Total horizontal flight time: {round((self.total_flight_time - self.total_vertical_time) / 1e6, 2)} seconds')
+        print(f'Waypoints: {self.wp_data}')
+
+    def process_stat_message(self, message):
+        if not self.is_flying and message['isFlyProb'] >= 0.8:
+            # The plane has started flying!
+            self.flights += 1
+            self.is_flying = True
+            self.auto_counted = False
+            self.flight_start_time = message['TimeUS']
+
+            if self.is_auto:
+                # The plane started flying in auto mode.
+                if not self.auto_counted:
+                    self.auto_flights += 1
+                    self.auto_counted = True
+
+                self.auto_start_time = message['TimeUS']
+
+            if self.is_vertical:
+                # The plane started flying in vertical mode.
+                self.vertical_start_time = message['TimeUS']
+        elif self.is_flying and message['isFlyProb'] < 0.8:
+            # The plane has stopped flying.
+            self.is_flying = False
+            self.total_flight_time += message['TimeUS'] - self.flight_start_time
+            self.flight_start_time = None
+            self.set_wp = []
+
+            if self.is_auto:
+                # The plane stopped flying in auto mode.
+                self.total_auto_time += message['TimeUS'] - self.auto_start_time
+                self.auto_start_time = None
+
+            if self.is_vertical:
+                # The plane stopped flying in vertical mode.
+                self.total_vertical_time += message['TimeUS'] - self.vertical_start_time
+                self.vertical_start_time = None
+>>>>>>> a58ff517868dd3f446651dfa53bb72bf3e0b6632
 
     def process_mode_message(self, message):
         mode = message['Mode']
@@ -181,6 +247,7 @@ class LogSummary:
                 # The plane stopped flying in vertical mode.
                 self.total_vertical_time += message['TimeUS'] - self.vertical_start_time
                 self.vertical_start_time = None
+<<<<<<< HEAD
 
     def to_csv(self):
         file = os.path.basename(self.file)
@@ -324,3 +391,17 @@ class LogSummary:
                 print('Error with waypoint data. Something funky happened during test flight. Check the log file.')
         else:
             print('No waypoints found.')
+=======
+        
+        if msg.startswith('Mission: '):
+            self.wp_count += 1
+            wp_info = self.set_wp.pop(0)
+            self.wp_data[self.wp_count] = [re.match(r'Mission: \d+ ([A-Za-z ]+)', msg).group(1), wp_info[0], wp_info[1], wp_info[2], None]
+        elif msg.startswith('Reached waypoint ') or msg.startswith('Passed waypoint '):
+             deviance = int(re.search(r"dist (\d+)m", message['Message']).group(1))
+             self.wp_data[self.wp_count][4] = deviance
+
+    def process_cmd_message(self, message):
+        if not self.is_flying and message['CNum'] != 0:
+            self.set_wp.append([message['Lat'], message['Lng'], message['Alt']])
+>>>>>>> a58ff517868dd3f446651dfa53bb72bf3e0b6632
