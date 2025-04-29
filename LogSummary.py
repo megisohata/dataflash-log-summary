@@ -2,6 +2,7 @@ from pymavlink import mavutil
 import csv
 import os
 import re
+from tabulate import tabulate
 
 class LogSummary:
     """
@@ -37,6 +38,11 @@ class LogSummary:
         self.set_wp = []
         self.wp_count = 0
         self.wp_data = {} # Format: {wp_num: [type, lat, lng, alt, deviance]}
+        self.wp_deviances = []
+
+        self.parse_log()
+        self.process_messages()
+        self.print_summary()
 
     def parse_log(self):
         message_count = 0
@@ -72,15 +78,6 @@ class LogSummary:
                 self.process_msg_message(message)
             elif type == 'CMD':
                 self.process_cmd_message(message)
-        
-        print(f'---------- Flight Summary for {self.file} ----------')
-        print(f'Total flights: {self.flights}')
-        print(f'Total auto flights: {self.auto_flights}')
-        print(f'Total flight time: {round(self.total_flight_time / 1e6, 2)} seconds')
-        print(f'Total auto flight time: {round(self.total_auto_time / 1e6, 2)} seconds')
-        print(f'Total vertical flight time: {round(self.total_vertical_time / 1e6, 2)} seconds')
-        print(f'Total horizontal flight time: {round((self.total_flight_time - self.total_vertical_time) / 1e6, 2)} seconds')
-        print(f'Waypoints: {self.wp_data}')
 
     def process_stat_message(self, message):
         if not self.is_flying and message['isFlyProb'] >= 0.8:
@@ -178,7 +175,33 @@ class LogSummary:
         elif msg.startswith('Reached waypoint ') or msg.startswith('Passed waypoint '):
              deviance = int(re.search(r"dist (\d+)m", message['Message']).group(1))
              self.wp_data[self.wp_count][4] = deviance
+             self.wp_deviances.append(deviance)
 
     def process_cmd_message(self, message):
         if not self.is_flying and message['CNum'] != 0:
             self.set_wp.append([message['Lat'], message['Lng'], message['Alt']])
+
+    def print_summary(self):
+        header = ['Metric', 'Value']
+
+        data = [['# Flights', self.flights],
+                ['# Auto Flights', self.auto_flights],
+                ['Flight Time (s)', round(self.total_flight_time / 1e6, 2)],
+                ['Auto Flight Time (s)', round(self.total_auto_time / 1e6, 2)],
+                ['Manual Flight Time (s)', round((self.total_flight_time - self.total_auto_time) / 1e6, 2)],
+                ['Vertical Flight Time (s)', round(self.total_vertical_time / 1e6, 2)],
+                ['Horizontal Flight Time (s)', round((self.total_flight_time - self.total_vertical_time) / 1e6, 2)],
+                ['Waypoints Attempted', self.wp_count],
+                ['Waypoints Hit', self.wp_count],
+                ['Average Waypoint Deviance (m)', sum(self.wp_deviances) / len(self.wp_deviances) if self.wp_deviances else 'N/A']]
+    
+        print(tabulate(data, headers=header, tablefmt="outline", colalign=('left', 'center')))
+
+        if self.wp_count > 0:
+            header = ["#", "Type", "Latitude", "Longitude", "Altitude (m)", "Deviance (m)"]
+
+            data = [[wp_num, wp_info[0], wp_info[1], wp_info[2], wp_info[3], wp_info[4] if wp_info[4] else 'N/A'] for wp_num, wp_info in self.wp_data.items()]
+
+            print(tabulate(data, headers=header, tablefmt="outline", colalign='center'))
+        else:
+            print('No waypoints attempted.')
