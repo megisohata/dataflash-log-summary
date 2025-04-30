@@ -1,6 +1,8 @@
 from LogSummary import LogSummary
 import os
 import glob
+import csv
+from tabulate import tabulate
 
 
 def main():
@@ -19,16 +21,98 @@ def main():
             LogSummary(os.path.join("logs", file))
 
     if logs > 1:
-        flight_data = []
-        wp_data = []
+        flight_data = [
+            [
+                "Log",
+                "Flights",
+                "Auto Flights",
+                "FT (s)",
+                "Auto FT (s)",
+                "Manual FT (s)",
+                "Vertical FT (s)",
+                "Horizontal FT (s)",
+                "WP Attempted",
+                "WP Hit",
+                "Avg WP Deviance (m)",
+            ]
+        ]
+
+        wp_data = [
+            [
+                "Log",
+                "#",
+                "Type",
+                "Latitude",
+                "Longitude",
+                "Altitude (m)",
+                "Deviance (m)",
+            ]
+        ]
 
         summaries = glob.glob(os.path.join("summaries", "*.csv"))
 
         for file in summaries:
             if file.endswith("flight_summary.csv"):
-                pass
+                entry = []
+
+                with open(file, "r") as rfile:
+                    reader = csv.reader(rfile)
+                    next(reader)
+
+                    for row in reader:
+                        entry = [file.split("/")[1].split("_")[0]] + row
+
+                flight_data.append(entry)
             elif file.endswith("waypoint_summary.csv"):
-                pass
+                entry = []
+
+                with open(file, "r") as rfile:
+                    reader = csv.reader(rfile)
+                    next(reader)
+
+                    for row in reader:
+                        entry = [file.split("/")[1].split("_")[0]] + row
+
+                wp_data.append(entry)
+
+        # Total row.
+        total = ["TOTAL"]
+        total.append(sum(float(row[1]) for row in flight_data[1:]))
+        total.append(sum(float(row[2]) for row in flight_data[1:]))
+        total.append(sum(float(row[3]) for row in flight_data[1:]))
+        total.append(sum(float(row[4]) for row in flight_data[1:]))
+        total.append(sum(float(row[5]) for row in flight_data[1:]))
+        total.append(sum(float(row[6]) for row in flight_data[1:]))
+        total.append(sum(float(row[7]) for row in flight_data[1:]))
+        total.append(sum(float(row[8]) for row in flight_data[1:]))
+        total.append(sum(float(row[9]) for row in flight_data[1:]))
+        total.append(
+            round(
+                sum([float(row[10]) for row in flight_data[1:]])
+                / sum([1 for row in flight_data[1:] if row[10] != "N/A"]),
+                2,
+            )
+        )
+        flight_data.append(total)
+
+        with open(
+            os.path.join("summaries", f"flight_summary.csv"),
+            "w",
+            newline="",
+        ) as file:
+            writer = csv.writer(file)
+            writer.writerows(flight_data)
+
+        with open(
+            os.path.join("summaries", f"waypoint_summary.csv"),
+            "w",
+            newline="",
+        ) as file:
+            writer = csv.writer(file)
+            writer.writerows(wp_data)
+
+        print(tabulate(flight_data[1:], headers=flight_data[0], tablefmt="outline"))
+        print(tabulate(wp_data[1:], headers=wp_data[0], tablefmt="outline"))
 
 
 if __name__ == "__main__":
