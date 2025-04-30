@@ -41,10 +41,16 @@ class LogSummary:
         self.wp_data = {}  # Format: {wp_num: [type, lat, lng, alt, deviance]}
         self.wp_deviances = []
 
+        print(
+            f"|=========================| Start of {self.file} |=========================|"
+        )
         self.parse_log()
         self.process_messages()
         self.print_summary()
         self.to_csv()
+        print(
+            f"|=========================| End of {self.file} |=========================|"
+        )
 
     def parse_log(self):
         message_count = 0
@@ -175,7 +181,7 @@ class LogSummary:
                 self.total_vertical_time += message["TimeUS"] - self.vertical_start_time
                 self.vertical_start_time = None
 
-        if msg.startswith("Mission: "):
+        if msg.startswith("Mission: ") and not self.set_wp == []:
             self.wp_count += 1
             wp_info = self.set_wp.pop(0)
             self.wp_data[self.wp_count] = [
