@@ -41,16 +41,12 @@ class LogSummary:
         self.wp_data = {}  # Format: {wp_num: [type, lat, lng, alt, deviance]}
         self.wp_deviances = []
 
-        print(
-            f"|=========================| Start of {self.file} |=========================|"
-        )
+        self.print_banner(self.file, "Start")
         self.parse_log()
         self.process_messages()
         self.print_summary()
         self.to_csv()
-        print(
-            f"|=========================| End of {self.file} |=========================|"
-        )
+        self.print_banner(self.file, "End")
 
     def parse_log(self):
         message_count = 0
@@ -336,3 +332,16 @@ class LogSummary:
             print(
                 f"Waypoint summary for {self.file} save to summaries/{name}_flight_summary.csv"
             )
+
+    def print_banner(self, file, label="Start"):
+        bold = "\033[1m"
+        reset = "\033[0m"
+        full_text = f"{label} of {file}"
+        width = 70
+        padding = (width - len(full_text)) // 2
+        line = f"{'=' * padding} {full_text} {'=' * padding}"
+
+        if len(line) < width:
+            line += "="
+
+        print(f"{bold}|{line}|{reset}")
