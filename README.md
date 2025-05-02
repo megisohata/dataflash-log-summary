@@ -8,13 +8,11 @@ This project focuses on streamlining the process of analyzing log files after ea
 git clone git@github.com:[USERNAME]/dataflash-log-summary.git
 ```
 
-Create a `logs` folder in the root directory.
-
 Move all log files (.BIN) you want to summarize into the `logs` folder.
 
-From your terminal, run `python script.py`.
+From your terminal, run `python summarize.py`.
 
-The script will process each file one-by-one, output the summary of each file, then output the sum of all the files.
+The program will process each file, output the summary of each file, then output the sum of all the files. It will also save the each output to CSV files. 
 
 Example Output:
 

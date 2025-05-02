@@ -1,4 +1,5 @@
 from LogSummary import LogSummary
+from LogSummary import print_banner
 import os
 import glob
 import csv
@@ -64,16 +65,13 @@ def main():
 
                 flight_data.append(entry)
             elif file.endswith("waypoint_summary.csv"):
-                entry = []
-
                 with open(file, "r") as rfile:
                     reader = csv.reader(rfile)
                     next(reader)
 
                     for row in reader:
                         entry = [file.split("/")[1].split("_")[0]] + row
-
-                wp_data.append(entry)
+                        wp_data.append(entry)
 
         # Total row.
         total = ["TOTAL"]
@@ -88,7 +86,7 @@ def main():
         total.append(sum(float(row[9]) for row in flight_data[1:]))
         total.append(
             round(
-                sum([float(row[10]) for row in flight_data[1:]])
+                sum([float(row[10]) for row in flight_data[1:] if row[10] != "N/A"])
                 / sum([1 for row in flight_data[1:] if row[10] != "N/A"]),
                 2,
             )
@@ -111,8 +109,12 @@ def main():
             writer = csv.writer(file)
             writer.writerows(wp_data)
 
+        print_banner("ALL", label="Start")
         print(tabulate(flight_data[1:], headers=flight_data[0], tablefmt="outline"))
         print(tabulate(wp_data[1:], headers=wp_data[0], tablefmt="outline"))
+        print("Combined flight summary saved to summaries/flight_summary.csv")
+        print("Combined flight summary saved to summaries/waypoint_summary.csv")
+        print_banner("ALL", label="End")
 
 
 if __name__ == "__main__":

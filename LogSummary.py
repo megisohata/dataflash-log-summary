@@ -41,12 +41,12 @@ class LogSummary:
         self.wp_data = {}  # Format: {wp_num: [type, lat, lng, alt, deviance]}
         self.wp_deviances = []
 
-        self.print_banner(self.file, "Start")
+        print_banner(self.file, "Start")
         self.parse_log()
         self.process_messages()
         self.print_summary()
         self.to_csv()
-        self.print_banner(self.file, "End")
+        print_banner(self.file, "End")
 
     def parse_log(self):
         message_count = 0
@@ -188,9 +188,10 @@ class LogSummary:
                 None,
             ]
         elif msg.startswith("Reached waypoint ") or msg.startswith("Passed waypoint "):
-            deviance = int(re.search(r"dist (\d+)m", message["Message"]).group(1))
-            self.wp_data[self.wp_count][4] = deviance
-            self.wp_deviances.append(deviance)
+            if self.wp_count > 1:
+                deviance = int(re.search(r"dist (\d+)m", message["Message"]).group(1))
+                self.wp_data[self.wp_count][4] = deviance
+                self.wp_deviances.append(deviance)
 
     def process_cmd_message(self, message):
         if not self.is_flying and message["CNum"] != 0:
@@ -302,7 +303,7 @@ class LogSummary:
             writer.writerows(data)
 
         print(
-            f"Flight summary for {self.file} save to summaries/{name}_flight_summary.csv"
+            f"Flight summary for {self.file} saved to summaries/{name}_flight_summary.csv"
         )
 
         # Waypoint summary
@@ -330,18 +331,19 @@ class LogSummary:
                 writer.writerows(data)
 
             print(
-                f"Waypoint summary for {self.file} save to summaries/{name}_flight_summary.csv"
+                f"Waypoint summary for {self.file} saved to summaries/{name}_flight_summary.csv"
             )
 
-    def print_banner(self, file, label="Start"):
-        bold = "\033[1m"
-        reset = "\033[0m"
-        full_text = f"{label} of {file}"
-        width = 70
-        padding = (width - len(full_text)) // 2
-        line = f"{'=' * padding} {full_text} {'=' * padding}"
 
-        if len(line) < width:
-            line += "="
+def print_banner(file, label="Start"):
+    bold = "\033[1m"
+    reset = "\033[0m"
+    full_text = f"{label} of {file}"
+    width = 70
+    padding = (width - len(full_text)) // 2
+    line = f"{'=' * padding} {full_text} {'=' * padding}"
 
-        print(f"{bold}|{line}|{reset}")
+    if len(line) < width:
+        line += "="
+
+    print(f"{bold}|{line}|{reset}")
