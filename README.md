@@ -16,4 +16,4 @@ The program will process each file, output the summary of each file, then output
 
 Example Output:
 
-<img width="650" alt="Terminal Output" src="https://github.com/user-attachments/assets/15ef0c97-4f28-4462-b5c9-6d01534274d0">
+<img width="425" alt="Screenshot 2025-05-01 at 8 43 56 PM" src="https://github.com/user-attachments/assets/ed679376-b482-492d-a872-31ea19ca8f65" />
